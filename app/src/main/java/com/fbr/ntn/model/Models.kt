@@ -29,6 +29,7 @@ data class PendingItem(
     val status: PendingStatus,
     val period: String,
     val dueLabel: String,
+    val amountFromApi: Double = 0.0,
     val sellerName: String = "",
     val sellerLogoUrl: String = "",
     val sellerNtn: String = "",
@@ -46,10 +47,10 @@ data class PendingItem(
     val scenario: String = "",
     val items: List<LineItem> = emptyList()
 ) {
-    val subtotal: Double get() = items.sumOf { it.valueExcl }
-    val tax: Double get() = items.sumOf { it.tax }
+    val subtotal: Double get() = if (items.isNotEmpty()) items.sumOf { it.valueExcl } else amountFromApi
+    val tax: Double get() = if (items.isNotEmpty()) items.sumOf { it.tax } else 0.0
     val furtherTax: Double get() = 0.0
-    val amount: Double get() = subtotal + tax + furtherTax
+    val amount: Double get() = if (items.isNotEmpty()) subtotal + tax + furtherTax else amountFromApi
 }
 
 fun money(value: Double): String {

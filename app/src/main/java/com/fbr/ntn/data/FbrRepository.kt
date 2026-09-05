@@ -140,6 +140,7 @@ class FbrRepository(
         Log.d("FBR", "getPending response: success=${res.success}, count=${res.count}")
         if (res.success) {
             val items = res.data.map { dto ->
+                val amt = dto.amount.toDoubleOrNull() ?: 0.0
                 PendingItem(
                     id = dto.sr.toString(),
                     number = "INV-${dto.fyear}-${dto.inv}",
@@ -150,6 +151,7 @@ class FbrRepository(
                     status = if (dto.chk == 1) PendingStatus.POSTED else PendingStatus.VALIDATE,
                     period = dto.fyear,
                     dueLabel = if (dto.chk == 1) "Posted" else "Pending",
+                    amountFromApi = amt,
                     sellerName = session.displayName ?: "",
                     sellerNtn = session.ntn ?: "",
                     buyerNtn = dto.ntn,
@@ -169,6 +171,7 @@ class FbrRepository(
         val res = api(baseUrl).getPosted(session.ntn ?: "", sdate, edate)
         if (res.success) {
             val items = res.data.map { dto ->
+                val amt = dto.amount.toDoubleOrNull() ?: 0.0
                 PendingItem(
                     id = "posted-${dto.sr}",
                     number = "INV-${dto.fyear}-${dto.inv}",
@@ -179,6 +182,7 @@ class FbrRepository(
                     status = PendingStatus.POSTED,
                     period = dto.fyear,
                     dueLabel = "Posted",
+                    amountFromApi = amt,
                     sellerName = session.displayName ?: "",
                     sellerNtn = session.ntn ?: "",
                     buyerNtn = dto.ntn,
@@ -209,9 +213,14 @@ class FbrRepository(
     suspend fun printInvoice(invoiceId: String): AppResult<PrintInvoiceData?> = try {
         val session = sessionStore.read() ?: error("No valid session")
         val baseUrl = session.apiUrl ?: _BASE_URL
+        Log.d("FBR", "printInvoice called with sr=$invoiceId, ntn=${session.ntn}, url=$baseUrl")
         val res = api(baseUrl).printInvoice(PrintInvoiceRequest(sr = invoiceId.toInt(), ntn = session.ntn ?: ""))
+        Log.d("FBR", "printInvoice response: success=${res.success}, items=${res.data?.items?.size ?: 0}")
         AppResult.Success(res.data)
-    } catch (t: Throwable) { mapError(t) }
+    } catch (t: Throwable) {
+        Log.e("FBR", "printInvoice error: ${t.message}", t)
+        mapError(t)
+    }
 
     private fun mapError(t: Throwable): AppResult.Error {
         val msg = t.message ?: t.javaClass.simpleName

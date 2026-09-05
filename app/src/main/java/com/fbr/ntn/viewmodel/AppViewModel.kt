@@ -1,5 +1,6 @@
 package com.fbr.ntn.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fbr.ntn.data.FbrRepository
@@ -178,9 +179,46 @@ class AppViewModel(
         }
     }
 
-    fun openInvoice(id: String) { _state.value = _state.value.copy(selectedId = id, screen = AppScreen.DETAIL) }
+    fun openInvoice(id: String) {
+        _state.value = _state.value.copy(selectedId = id, screen = AppScreen.DETAIL)
+        loadInvoiceDetail(id)
+    }
     fun closeDetail() { _state.value = _state.value.copy(selectedId = null, screen = AppScreen.HOME) }
     fun lock() { _state.value = _state.value.copy(screen = AppScreen.LOCK, selectedId = null) }
+
+    private fun loadInvoiceDetail(id: String) = viewModelScope.launch {
+        when (val result = repository.printInvoice(id)) {
+            is AppResult.Success -> {
+                val data = result.value ?: return@launch
+                val lineItems = data.items.map { pi ->
+                    com.fbr.ntn.model.LineItem(
+                        description = pi.itemName,
+                        hsCode = pi.hsCode,
+                        uom = pi.uom,
+                        quantity = pi.qty.toDouble(),
+                        rate = pi.rate.toDouble(),
+                        taxRate = pi.gstRate.toDouble()
+                    )
+                }
+                _state.value = _state.value.copy(
+                    pendingItems = _state.value.pendingItems.map {
+                        if (it.id == id) it.copy(
+                            items = lineItems,
+                            sellerName = data.company?.name ?: it.sellerName,
+                            sellerNtn = data.company?.ntn ?: it.sellerNtn,
+                            sellerAddr = data.company?.address ?: it.sellerAddr,
+                            buyerNtn = data.buyer?.ntn ?: it.buyerNtn,
+                            buyerAddr = data.buyer?.address ?: it.buyerAddr,
+                            buyerStrn = data.buyer?.province ?: "",
+                            fbrInvoiceNo = data.fbr_token ?: "",
+                            saleType = "Goods at standard rate"
+                        ) else it
+                    }
+                )
+            }
+            is AppResult.Error -> Log.e("FBR", "printInvoice failed: ${result.message}")
+        }
+    }
 
     fun unlock(username: String, password: String, pin: String) = viewModelScope.launch {
         _state.value = _state.value.copy(connectLoading = true, connectError = null)
