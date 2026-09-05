@@ -202,7 +202,6 @@ object PdfInvoice {
         c.drawText("FBR DIGITAL VERIFICATION", M + 12f, y + 20f, paint(navy, 10f, true))
         c.drawText("FBR Invoice No. ${inv.fbrInvoiceNo.ifBlank { "-" }}", M + 12f, y + 38f, body)
         c.drawText("Validation code: ${inv.validationCode.ifBlank { "-" }}", M + 12f, y + 54f, body)
-        c.drawText("Scenario: ${inv.scenario.ifBlank { "SN001 - Registered person" }}", M + 12f, y + 70f, body)
 
         val qrContent = buildString {
             append("Invoice: ${inv.number}")

@@ -67,7 +67,9 @@ fun InvoiceDetailScreen(
                         CircularProgressIndicator(color = Accent, strokeWidth = 3.dp)
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("Loading invoice details from FBR...", style = MaterialTheme.typography.bodyMedium, color = InkMuted, modifier = Modifier.align(Alignment.CenterHorizontally))
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text("Loading invoice details from FBR...", style = MaterialTheme.typography.bodyMedium, color = InkMuted)
+                    }
                 }
             } else {
                 Card(enterDelay = 100) {
