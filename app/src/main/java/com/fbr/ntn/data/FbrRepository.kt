@@ -1,8 +1,6 @@
 package com.fbr.ntn.data
 
 import com.fbr.ntn.model.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -96,14 +94,13 @@ class FbrRepository(
         if (res.status == "found") {
             AppResult.Success(AccountContext(ntn, "", ""))
         } else {
-            AppResult.Error(ErrorKind.NOT_FOUND, res.status.ifBlank { "NTN not found on FBR" })
+            AppResult.Error(ErrorKind.NOT_FOUND, "NTN not found on FBR")
         }
     } catch (t: Throwable) { mapError(t) }
 
     suspend fun verifyPin(ntn: String, pin: String): AppResult<Session> = try {
         val pinInt = pin.toIntOrNull()
             ?: return AppResult.Error(ErrorKind.UNAUTHORIZED, "PIN must be a number")
-
         val pinRes = api().verifyPin(VerifyPinRequest(ntn, pinInt))
         if (pinRes.status != "verified") {
             AppResult.Error(ErrorKind.UNAUTHORIZED, pinRes.status.ifBlank { "PIN verification failed" })
@@ -113,24 +110,14 @@ class FbrRepository(
                 AppResult.Error(ErrorKind.SERVER, "Server did not return a login URL")
             } else {
                 val safeUrl = if (dynamicUrl.endsWith("/")) dynamicUrl else "$dynamicUrl/"
-                val loginRes = api(safeUrl).login(
-                    LoginRequest(username = "admin", password = "1234", pin = pin, ntn = ntn)
+                val session = Session(
+                    token = "",
+                    expiresAtEpochSeconds = System.currentTimeMillis() / 1000 + 60 * 60 * 24 * 30,
+                    ntn = ntn,
+                    apiUrl = safeUrl
                 )
-                if (loginRes.success && loginRes.data != null) {
-                    val d = loginRes.data
-                    val session = Session(
-                        token = d.token,
-                        expiresAtEpochSeconds = System.currentTimeMillis() / 1000 + 60 * 60 * 24 * 30,
-                        ntn = d.ntn,
-                        displayName = d.partyname,
-                        apiUrl = safeUrl,
-                        username = "admin"
-                    )
-                    saveSession(session)
-                    AppResult.Success(session)
-                } else {
-                    AppResult.Error(ErrorKind.UNAUTHORIZED, loginRes.message.ifBlank { "Login failed after PIN verification" })
-                }
+                saveSession(session)
+                AppResult.Success(session)
             }
         }
     } catch (t: Throwable) { mapError(t) }
@@ -154,8 +141,6 @@ class FbrRepository(
                     sellerName = session.displayName ?: "",
                     sellerNtn = session.ntn ?: "",
                     buyerNtn = dto.ntn,
-                    buyerStrn = "",
-                    buyerAddr = "",
                     fbrInvoiceNo = "",
                     items = emptyList()
                 )
@@ -199,7 +184,7 @@ class FbrRepository(
         val session = sessionStore.read() ?: error("No valid session")
         val baseUrl = session.apiUrl ?: _BASE_URL
         val res = api(baseUrl).validate(InvoiceActionRequest(sr = invoiceId.toInt(), ntn = session.ntn ?: ""))
-        AppResult.Success(res.success to null)
+        AppResult.Success(res.success to res.message)
     } catch (t: Throwable) { mapError(t) }
 
     suspend fun postInvoice(invoiceId: String): AppResult<Boolean> = try {
@@ -216,30 +201,19 @@ class FbrRepository(
         AppResult.Success(res.data)
     } catch (t: Throwable) { mapError(t) }
 
-    private suspend fun cacheApiLogo(url: String) = withContext(Dispatchers.IO) {
-        runCatching {
-            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout = 8000; conn.readTimeout = 8000; conn.instanceFollowRedirects = true
-            conn.inputStream.use { input -> File(cacheDir, API_LOGO_FILE).outputStream().use { output -> input.copyTo(output) } }
-            conn.disconnect()
-        }
-    }
-
     private fun mapError(t: Throwable): AppResult.Error {
         val msg = t.message ?: t.javaClass.simpleName
         return when (t) {
-            is java.io.IOException -> AppResult.Error(ErrorKind.NETWORK, "Network error: $msg")
+            is java.io.IOException -> AppResult.Error(ErrorKind.NETWORK, "No internet connection")
             is retrofit2.HttpException -> {
-                val body = try { t.response()?.errorBody()?.string() } catch (_: Exception) { null }
-                val detail = body?.take(200) ?: msg
+                val body = try { t.response()?.errorBody()?.string()?.take(200) } catch (_: Exception) { null }
                 when (t.code()) {
-                    401 -> AppResult.Error(ErrorKind.UNAUTHORIZED, "Unauthorized: $detail")
-                    404 -> AppResult.Error(ErrorKind.NOT_FOUND, "Not found: $detail")
-                    else -> AppResult.Error(ErrorKind.SERVER, "Server error ${t.code()}: $detail")
+                    401 -> AppResult.Error(ErrorKind.UNAUTHORIZED, body ?: "Wrong username or password")
+                    404 -> AppResult.Error(ErrorKind.NOT_FOUND, body ?: "Not found")
+                    else -> AppResult.Error(ErrorKind.SERVER, body ?: "Server error ${t.code()}")
                 }
             }
-            is com.google.gson.JsonSyntaxException -> AppResult.Error(ErrorKind.SERVER, "Bad response from server: $msg")
-            is NumberFormatException -> AppResult.Error(ErrorKind.SERVER, "Invalid data from server: $msg")
+            is com.google.gson.JsonSyntaxException -> AppResult.Error(ErrorKind.SERVER, "Bad response from server")
             else -> AppResult.Error(ErrorKind.UNKNOWN, msg)
         }
     }

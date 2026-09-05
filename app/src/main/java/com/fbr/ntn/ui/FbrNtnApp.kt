@@ -39,22 +39,20 @@ fun FbrNtnApp(container: AppContainer) {
         ) { screen ->
             when (screen) {
                 AppScreen.SPLASH -> SplashScreen()
-                AppScreen.NTN -> NtnScreen(state.ntnLoading, state.ntnError, model::checkNtn, model::openConnect)
+                AppScreen.NTN -> NtnScreen(state.ntnLoading, state.ntnError, model::checkNtn)
+                AppScreen.PIN -> PinScreen(
+                    state.ntn,
+                    state.pinLoading,
+                    state.pinError,
+                    model::switchAccount,
+                    model::verifyPin
+                )
                 AppScreen.CONNECT -> ConnectScreen(
                     state.connectLoading,
                     state.connectError,
                     model::switchAccount,
                     model::connect
                 )
-                AppScreen.PIN -> state.account?.let { account ->
-                    PinScreen(
-                        account.ntn,
-                        state.pinLoading,
-                        state.pinError,
-                        { model.checkNtn(account.ntn) },
-                        { model.verifyPin(account.ntn, it) }
-                    )
-                }
                 AppScreen.HOME -> HomeScreen(
                     state.account, state.pendingItems, state.pendingLoading, state.pendingRefreshing,
                     state.pendingError, { model.loadPending(true) }, { model.loadPending() }, model::openInvoice, model::lock,
