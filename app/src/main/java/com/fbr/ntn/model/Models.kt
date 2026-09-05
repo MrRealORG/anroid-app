@@ -45,6 +45,7 @@ data class PendingItem(
     val fbrInvoiceNo: String = "",
     val validationCode: String = "",
     val scenario: String = "",
+    val columns: List<String> = emptyList(),
     val items: List<LineItem> = emptyList()
 ) {
     val subtotal: Double get() = if (items.isNotEmpty()) items.sumOf { it.valueExcl } else amountFromApi

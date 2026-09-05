@@ -181,7 +181,7 @@ class AppViewModel(
     }
 
     fun openInvoice(id: String) {
-        _state.value = _state.value.copy(selectedId = id, screen = AppScreen.DETAIL)
+        _state.value = _state.value.copy(selectedId = id, screen = AppScreen.DETAIL, detailLoading = true)
         loadInvoiceDetail(id)
     }
     fun closeDetail() { _state.value = _state.value.copy(selectedId = null, screen = AppScreen.HOME) }
@@ -213,6 +213,7 @@ class AppViewModel(
                     pendingItems = _state.value.pendingItems.map {
                         if (it.id == id) it.copy(
                             items = lineItems,
+                            columns = data.columns,
                             amountFromApi = apiAmount,
                             sellerName = data.company?.name ?: it.sellerName,
                             sellerNtn = data.company?.ntn ?: it.sellerNtn,

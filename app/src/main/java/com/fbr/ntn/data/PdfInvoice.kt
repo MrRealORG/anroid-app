@@ -125,15 +125,24 @@ object PdfInvoice {
         fun tableHeader(yy: Float) {
             c.drawRect(M, yy, PAGE_W - M, yy + 20f, Paint().apply { color = lightFill })
             val hp = paint(navy, 8f, true)
-            c.drawText("#", M + 4f, yy + 14f, hp)
-            c.drawText("HS CODE", 56f, yy + 14f, hp)
-            c.drawText("DESCRIPTION", 120f, yy + 14f, hp)
-            c.drawText("UOM", 290f, yy + 14f, hp)
-            c.drawText("QTY", 320f, yy + 14f, hp)
-            c.drawText("RATE", 360f, yy + 14f, hp)
-            right(c, "AMOUNT", 470f, yy + 14f, hp)
-            right(c, "TAX", 520f, yy + 14f, hp)
-            right(c, "TOTAL", PAGE_W - M - 4f, yy + 14f, hp)
+            val cols = inv.columns
+            if (cols.isNotEmpty()) {
+                val positions = listOf(M + 4f, 56f, 120f, 290f, 320f, 360f, 420f, 470f, 520f)
+                cols.take(positions.size).forEachIndexed { i, col ->
+                    if (i < 6) c.drawText(col.uppercase(), positions[i], yy + 14f, hp)
+                    else right(c, col.uppercase(), positions[i], yy + 14f, hp)
+                }
+            } else {
+                c.drawText("#", M + 4f, yy + 14f, hp)
+                c.drawText("HS CODE", 56f, yy + 14f, hp)
+                c.drawText("DESCRIPTION", 120f, yy + 14f, hp)
+                c.drawText("UOM", 290f, yy + 14f, hp)
+                c.drawText("QTY", 320f, yy + 14f, hp)
+                c.drawText("RATE", 360f, yy + 14f, hp)
+                right(c, "AMOUNT", 470f, yy + 14f, hp)
+                right(c, "TAX", 520f, yy + 14f, hp)
+                right(c, "TOTAL", PAGE_W - M - 4f, yy + 14f, hp)
+            }
         }
         tableHeader(y); y += 20f
         val rowP = paint(navy, 8.5f)
