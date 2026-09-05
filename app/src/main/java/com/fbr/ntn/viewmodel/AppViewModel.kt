@@ -227,7 +227,7 @@ class AppViewModel(
 
     private fun friendlyError(kind: ErrorKind, message: String? = null) = when (kind) {
         ErrorKind.NETWORK -> message ?: "Couldn't reach the server — check your connection"
-        ErrorKind.UNAUTHORIZED -> message ?: "Invalid NTN or PIN. Try again"
+        ErrorKind.UNAUTHORIZED -> message ?: "Invalid credentials. Try again"
         ErrorKind.NOT_FOUND -> message ?: "NTN not found on FBR"
         ErrorKind.SERVER -> message ?: "Server error — try again later"
         else -> message ?: "Something went wrong. Please try again"
