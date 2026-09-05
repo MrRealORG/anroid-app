@@ -25,6 +25,7 @@ data class AppUiState(
     val connectLoading: Boolean = false,
     val connectError: String? = null,
     val connectUrl: String = "",
+    val detailLoading: Boolean = false,
     val pendingLoading: Boolean = false,
     val pendingRefreshing: Boolean = false,
     val pendingItems: List<PendingItem> = emptyList(),
@@ -187,9 +188,14 @@ class AppViewModel(
     fun lock() { _state.value = _state.value.copy(screen = AppScreen.LOCK, selectedId = null) }
 
     private fun loadInvoiceDetail(id: String) = viewModelScope.launch {
+        _state.value = _state.value.copy(detailLoading = true)
         when (val result = repository.printInvoice(id)) {
             is AppResult.Success -> {
-                val data = result.value ?: return@launch
+                val data = result.value
+                if (data == null) {
+                    _state.value = _state.value.copy(detailLoading = false)
+                    return@launch
+                }
                 val lineItems = data.items.map { pi ->
                     com.fbr.ntn.model.LineItem(
                         description = pi.itemName,
@@ -200,23 +206,32 @@ class AppViewModel(
                         taxRate = pi.gstRate.toDouble()
                     )
                 }
+                val summary = data.summary
+                val apiAmount = summary?.totalInclusive ?: 0.0
                 _state.value = _state.value.copy(
+                    detailLoading = false,
                     pendingItems = _state.value.pendingItems.map {
                         if (it.id == id) it.copy(
                             items = lineItems,
+                            amountFromApi = apiAmount,
                             sellerName = data.company?.name ?: it.sellerName,
                             sellerNtn = data.company?.ntn ?: it.sellerNtn,
                             sellerAddr = data.company?.address ?: it.sellerAddr,
+                            sellerStrn = data.company?.saletax ?: it.sellerStrn,
                             buyerNtn = data.buyer?.ntn ?: it.buyerNtn,
                             buyerAddr = data.buyer?.address ?: it.buyerAddr,
-                            buyerStrn = data.buyer?.province ?: "",
-                            fbrInvoiceNo = data.fbr_token ?: "",
+                            buyerStrn = data.buyer?.province ?: it.buyerStrn,
+                            fbrInvoiceNo = data.invoice?.token ?: it.fbrInvoiceNo,
+                            validationCode = data.fbr_token ?: it.validationCode,
                             saleType = "Goods at standard rate"
                         ) else it
                     }
                 )
             }
-            is AppResult.Error -> Log.e("FBR", "printInvoice failed: ${result.message}")
+            is AppResult.Error -> {
+                _state.value = _state.value.copy(detailLoading = false)
+                Log.e("FBR", "printInvoice failed: ${result.message}")
+            }
         }
     }
 

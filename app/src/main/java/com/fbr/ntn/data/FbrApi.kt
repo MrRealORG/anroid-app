@@ -57,7 +57,7 @@ data class PrintInvoiceData(
     val summary: PrintSummary?,
     val fbr_token: String = ""
 )
-data class PrintCompany(val ntn: String, val name: String, val address: String, val province: String, val phone: String)
+data class PrintCompany(val ntn: String, val name: String, val address: String, val province: String, val phone: String, val saletax: String = "")
 data class PrintInvoiceInfo(val sr: Int, val inv: Int, val date: String, val token: String)
 data class PrintBuyer(val name: String, val ntn: String, val address: String, val province: String, val phone: String)
 data class PrintItem(

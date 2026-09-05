@@ -61,7 +61,7 @@ fun FbrNtnApp(container: AppContainer) {
                 )
                 AppScreen.DETAIL -> {
                     val invoice = state.pendingItems.find { it.id == state.selectedId }
-                    if (invoice != null) InvoiceDetailScreen(invoice, model::closeDetail, { model.validateInvoice(invoice.id) }, { model.postInvoice(invoice.id) })
+                    if (invoice != null) InvoiceDetailScreen(invoice, state.detailLoading, model::closeDetail, { model.validateInvoice(invoice.id) }, { model.postInvoice(invoice.id) })
                 }
                 AppScreen.SETTINGS -> SettingsScreen(
                     state.themeMode, state.soundsEnabled, state.account?.displayName,

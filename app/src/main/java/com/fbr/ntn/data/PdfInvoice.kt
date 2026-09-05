@@ -2,15 +2,19 @@ package com.fbr.ntn.data
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import androidx.core.content.FileProvider
-import com.fbr.ntn.R
 import com.fbr.ntn.model.PendingItem
 import com.fbr.ntn.model.amountInWordsPKR
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.common.BitMatrix
+import com.google.zxing.qrcode.QRCodeWriter
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.round
@@ -61,6 +65,19 @@ object PdfInvoice {
         return lines
     }
 
+    private fun generateQrBitmap(content: String, size: Int = 120): Bitmap {
+        val hints = mapOf(EncodeHintType.MARGIN to 1, EncodeHintType.ERROR_CORRECTION to com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.L)
+        val writer = QRCodeWriter()
+        val bitMatrix: BitMatrix = writer.encode(content, BarcodeFormat.QR_CODE, size, size, hints)
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        for (x in 0 until size) {
+            for (y in 0 until size) {
+                bmp.setPixel(x, y, if (bitMatrix.get(x, y)) Color.BLACK else Color.WHITE)
+            }
+        }
+        return bmp
+    }
+
     fun generate(context: Context, inv: PendingItem): File {
         val doc = PdfDocument()
         var page = doc.startPage(PdfDocument.PageInfo.Builder(PAGE_W, PAGE_H, 1).create())
@@ -97,8 +114,9 @@ object PdfInvoice {
         c.drawText(inv.sellerName, M, y, bodyBold)
         c.drawText(inv.client.ifBlank { "Walk-in customer" }, midX, y, bodyBold); y += 13f
         c.drawText("NTN: ${inv.sellerNtn}", M, y, small)
+        if (inv.sellerStrn.isNotBlank()) { c.drawText("STRN: ${inv.sellerStrn}", M, y + 12f, small) }
         if (inv.buyerNtn.isNotBlank()) c.drawText("NTN: ${inv.buyerNtn}", midX, y, small)
-        y += 12f
+        y += if (inv.sellerStrn.isNotBlank()) 24f else 12f
         wrap(inv.sellerAddr, small, midX - M - 16f).take(2).forEach { c.drawText(it, M, y, small); y += 12f }
         c.drawText(inv.sellerContact, M, y, small)
         y += 24f
@@ -155,8 +173,8 @@ object PdfInvoice {
         wrap(amountInWordsPKR(inv.amount), body, 280f).take(3).forEach { c.drawText(it, M, y, body); y += 11f }
         y += 5f
         c.drawText("Payment terms", M, y, tiny); y += 11f
-        wrap(inv.paymentTerms, body, 280f).take(2).forEach { c.drawText(it, M, y, body); y += 11f }
-        c.drawText("Sale type: ${inv.saleType}", M, y + 10f, small)
+        wrap(inv.paymentTerms.ifBlank { "Due on receipt" }, body, 280f).take(2).forEach { c.drawText(it, M, y, body); y += 11f }
+        c.drawText("Sale type: ${inv.saleType.ifBlank { "Goods at standard rate" }}", M, y + 10f, small)
 
         var ty = notesTop + 14f
         fun totalRow(label: String, value: String, big: Boolean) {
@@ -176,13 +194,30 @@ object PdfInvoice {
             page = doc.startPage(PdfDocument.PageInfo.Builder(PAGE_W, PAGE_H, doc.pages.size + 1).create())
             c = page.canvas; y = 50f
         }
+
+        val fbrBoxY = y
         c.drawRoundRect(RectF(M, y, PAGE_W - M, y + 80f), 8f, 8f, Paint().apply {
             color = lightFill; style = Paint.Style.STROKE; strokeWidth = 1f
         })
         c.drawText("FBR DIGITAL VERIFICATION", M + 12f, y + 20f, paint(navy, 10f, true))
         c.drawText("FBR Invoice No. ${inv.fbrInvoiceNo.ifBlank { "-" }}", M + 12f, y + 38f, body)
-        c.drawText("Validation code: ${inv.validationCode}", M + 12f, y + 54f, body)
-        c.drawText("Scenario: ${inv.scenario}", M + 12f, y + 70f, body)
+        c.drawText("Validation code: ${inv.validationCode.ifBlank { "-" }}", M + 12f, y + 54f, body)
+        c.drawText("Scenario: ${inv.scenario.ifBlank { "SN001 - Registered person" }}", M + 12f, y + 70f, body)
+
+        val qrContent = buildString {
+            append("Invoice: ${inv.number}")
+            if (inv.fbrInvoiceNo.isNotBlank()) append("\nToken: ${inv.fbrInvoiceNo}")
+            if (inv.validationCode.isNotBlank()) append("\nValidation: ${inv.validationCode}")
+            append("\nAmount: PKR ${plain(inv.amount)}")
+            append("\nDate: ${inv.date}")
+        }
+        try {
+            val qrBitmap = generateQrBitmap(qrContent, 120)
+            val qrX = PAGE_W - M - 100f
+            val qrY = fbrBoxY + 10f
+            c.drawBitmap(qrBitmap, null, RectF(qrX, qrY, qrX + 60f, qrY + 60f), null)
+        } catch (_: Exception) { }
+
         y += 96f
 
         c.drawLine(M, PAGE_H - 40f, PAGE_W - M, PAGE_H - 40f, thin(line))
