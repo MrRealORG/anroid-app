@@ -2,7 +2,6 @@ package com.fbr.ntn.ui
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -32,8 +31,12 @@ fun FbrNtnApp(container: AppContainer) {
         AnimatedContent(
             targetState = state.screen,
             transitionSpec = {
-                (slideInHorizontally(spring()) { it / 3 } + fadeIn()) togetherWith
-                    (slideOutHorizontally(spring()) { -it / 4 } + fadeOut())
+                if (targetState == AppScreen.DETAIL || initialState == AppScreen.DETAIL) {
+                    (EnterTransition.None togetherWith ExitTransition.None)
+                } else {
+                    (slideInHorizontally(spring()) { it / 3 } + fadeIn()) togetherWith
+                        (slideOutHorizontally(spring()) { -it / 4 } + fadeOut())
+                }
             },
             label = "screen transition"
         ) { screen ->
