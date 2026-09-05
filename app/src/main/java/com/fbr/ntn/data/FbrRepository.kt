@@ -1,5 +1,6 @@
 package com.fbr.ntn.data
 
+import android.util.Log
 import com.fbr.ntn.model.*
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -69,9 +70,11 @@ class FbrRepository(
 
     suspend fun connectAndLogin(apiUrl: String, username: String, password: String, pin: String, ntn: String = ""): AppResult<Session> = try {
         val safeUrl = if (apiUrl.endsWith("/")) apiUrl else "$apiUrl/"
+        Log.d("FBR", "connectAndLogin called with url=$safeUrl, user=$username, ntn=$ntn")
         val loginRes = api(safeUrl).login(
             LoginRequest(username = username, password = password, pin = pin, ntn = ntn)
         )
+        Log.d("FBR", "login response: success=${loginRes.success}, message=${loginRes.message}")
         if (loginRes.success && loginRes.data != null) {
             val d = loginRes.data
             val session = Session(
@@ -90,18 +93,25 @@ class FbrRepository(
     } catch (t: Throwable) { mapError(t) }
 
     suspend fun checkNtn(ntn: String): AppResult<AccountContext> = try {
+        Log.d("FBR", "checkNtn called with ntn=$ntn")
         val res = api().checkNtn(CheckNtnRequest(ntn))
+        Log.d("FBR", "checkNtn response: status=${res.status}")
         if (res.status == "found") {
             AppResult.Success(AccountContext(ntn, "", ""))
         } else {
             AppResult.Error(ErrorKind.NOT_FOUND, "NTN not found on FBR")
         }
-    } catch (t: Throwable) { mapError(t) }
+    } catch (t: Throwable) {
+        Log.e("FBR", "checkNtn error: ${t.message}", t)
+        mapError(t)
+    }
 
     suspend fun verifyPin(ntn: String, pin: String): AppResult<Session> = try {
         val pinInt = pin.toIntOrNull()
             ?: return AppResult.Error(ErrorKind.UNAUTHORIZED, "PIN must be a number")
+        Log.d("FBR", "verifyPin called with ntn=$ntn, pin=$pinInt")
         val pinRes = api().verifyPin(VerifyPinRequest(ntn, pinInt))
+        Log.d("FBR", "verifyPin response: status=${pinRes.status}, url=${pinRes.url}")
         if (pinRes.status != "verified") {
             AppResult.Error(ErrorKind.UNAUTHORIZED, pinRes.status.ifBlank { "PIN verification failed" })
         } else {
@@ -125,7 +135,9 @@ class FbrRepository(
     suspend fun getPending(): AppResult<List<PendingItem>> = try {
         val session = sessionStore.read() ?: error("No valid session")
         val baseUrl = session.apiUrl ?: _BASE_URL
+        Log.d("FBR", "getPending called with ntn=${session.ntn}, url=$baseUrl")
         val res = api(baseUrl).getPending(session.ntn ?: "")
+        Log.d("FBR", "getPending response: success=${res.success}, count=${res.count}")
         if (res.success) {
             val items = res.data.map { dto ->
                 PendingItem(
@@ -203,6 +215,7 @@ class FbrRepository(
 
     private fun mapError(t: Throwable): AppResult.Error {
         val msg = t.message ?: t.javaClass.simpleName
+        Log.e("FBR", "mapError: ${t.javaClass.simpleName}: $msg")
         return when (t) {
             is java.io.IOException -> AppResult.Error(ErrorKind.NETWORK, "No internet connection")
             is retrofit2.HttpException -> {

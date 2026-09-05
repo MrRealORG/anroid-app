@@ -48,18 +48,17 @@ private fun ScreenFrame(content: @Composable ColumnScope.() -> Unit) {
 @Composable
 fun NtnScreen(loading: Boolean, error: String?, onSubmit: (String) -> Unit, onConnect: () -> Unit = {}) {
     var ntn by rememberSaveable { mutableStateOf("") }
-    val cleanNtn = ntn.filter { it.isDigit() || it == '-' }
-    val valid = cleanNtn.length in 7..15
+    val valid = ntn.length in 7..13 && ntn.all(Char::isDigit)
     LaunchedEffect(error) { if (error != null) SoundFx.error() }
     ScreenFrame {
         ScreenHeader("Verify your NTN", "Enter your National Tax Number to find the account linked with FBR.")
         Card(enterDelay = 120) {
             Text("National Tax Number", style = MaterialTheme.typography.labelLarge, color = InkMuted)
             Spacer(Modifier.height(10.dp))
-            Field(ntn, { ntn = it.filter { it.isDigit() || it == '-' }.take(15) }, "e.g. 1234567-8", error != null, KeyboardType.Number)
+            Field(ntn, { ntn = it.filter(Char::isDigit).take(13) }, "e.g. 1234567", error != null, KeyboardType.Number)
             InlineMessage(error)
             Spacer(Modifier.height(22.dp))
-            AccentButton("Check NTN", valid, loading) { onSubmit(cleanNtn) }
+            AccentButton("Check NTN", valid, loading) { onSubmit(ntn) }
         }
         TextButton(onClick = onConnect, modifier = Modifier.align(Alignment.CenterHorizontally)) {
             Text("Connect workspace", color = AccentDeep, fontWeight = FontWeight.Bold)

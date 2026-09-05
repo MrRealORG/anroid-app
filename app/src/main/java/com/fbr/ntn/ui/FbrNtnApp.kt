@@ -48,6 +48,7 @@ fun FbrNtnApp(container: AppContainer) {
                     model::verifyPin
                 )
                 AppScreen.CONNECT -> ConnectScreen(
+                    state.connectUrl,
                     state.connectLoading,
                     state.connectError,
                     model::switchAccount,

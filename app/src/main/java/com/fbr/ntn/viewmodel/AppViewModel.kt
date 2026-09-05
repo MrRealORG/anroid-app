@@ -23,6 +23,7 @@ data class AppUiState(
     val pinError: String? = null,
     val connectLoading: Boolean = false,
     val connectError: String? = null,
+    val connectUrl: String = "",
     val pendingLoading: Boolean = false,
     val pendingRefreshing: Boolean = false,
     val pendingItems: List<PendingItem> = emptyList(),
@@ -65,15 +66,15 @@ class AppViewModel(
     private fun checkSession() = viewModelScope.launch {
         val session = repository.validSession()
         delay(1100)
-        if (session != null && !session.apiUrl.isNullOrBlank()) {
+        if (session != null && !session.apiUrl.isNullOrBlank() && !session.token.isNullOrBlank()) {
             _state.value = _state.value.copy(
                 screen = AppScreen.HOME,
                 account = AccountContext(session.ntn ?: "", session.displayName ?: "", ""),
                 pendingItems = emptyList()
             )
             loadPending()
-        } else if (session != null) {
-            _state.value = _state.value.copy(screen = AppScreen.CONNECT, ntn = session.ntn ?: "")
+        } else if (session != null && !session.ntn.isNullOrBlank()) {
+            _state.value = _state.value.copy(screen = AppScreen.CONNECT, ntn = session.ntn, connectUrl = session.apiUrl ?: "")
         } else {
             _state.value = _state.value.copy(screen = AppScreen.NTN)
         }
@@ -98,7 +99,8 @@ class AppViewModel(
                 _state.value = _state.value.copy(
                     screen = AppScreen.CONNECT,
                     pinLoading = false,
-                    ntn = session.ntn ?: ntn
+                    ntn = session.ntn ?: ntn,
+                    connectUrl = session.apiUrl ?: ""
                 )
             }
             is AppResult.Error -> {

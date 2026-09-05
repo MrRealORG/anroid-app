@@ -24,8 +24,8 @@ import com.fbr.ntn.ui.components.*
 import com.fbr.ntn.ui.theme.*
 
 @Composable
-fun ConnectScreen(loading: Boolean, error: String?, onBack: () -> Unit, onConnect: (String, String, String, String) -> Unit) {
-    var apiUrl by rememberSaveable { mutableStateOf(BuildConfig.API_BASE_URL) }
+fun ConnectScreen(prefilledUrl: String, loading: Boolean, error: String?, onBack: () -> Unit, onConnect: (String, String, String, String) -> Unit) {
+    var apiUrl by rememberSaveable { mutableStateOf(prefilledUrl.ifBlank { BuildConfig.API_BASE_URL }) }
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var pin by rememberSaveable { mutableStateOf("") }
