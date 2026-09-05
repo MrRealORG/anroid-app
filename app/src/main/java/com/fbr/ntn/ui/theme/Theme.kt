@@ -6,14 +6,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val Scheme = lightColorScheme(
-    primary = AccentBlue,
-    secondary = AccentTeal,
-    background = BackgroundLilac,
-    surface = Color.White,
+    primary = Ink,
     onPrimary = Color.White,
+    primaryContainer = Accent,
+    onPrimaryContainer = Ink,
+    secondary = InkMuted,
+    onSecondary = Color.White,
+    background = Paper,
     onBackground = Ink,
+    surface = CardWhite,
     onSurface = Ink,
-    error = ErrorRed
+    surfaceVariant = Track,
+    onSurfaceVariant = InkMuted,
+    outline = Line,
+    error = ErrorRed,
+    onError = Color.White
 )
 
 @Composable

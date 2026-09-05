@@ -3,132 +3,233 @@ package com.fbr.ntn.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fbr.ntn.data.FbrRepository
+import com.fbr.ntn.data.SettingsStore
 import com.fbr.ntn.model.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Job
 
-enum class AppScreen { SPLASH, NTN, MOBILE, OTP, WEB_LOGIN, HOME }
+enum class AppScreen { SPLASH, CONNECT, NTN, PIN, HOME, DETAIL, SETTINGS, LOCK }
 
 data class AppUiState(
     val screen: AppScreen = AppScreen.SPLASH,
     val account: AccountContext? = null,
     val ntnLoading: Boolean = false,
     val ntnError: String? = null,
-    val otpSending: Boolean = false,
-    val challengeId: String? = null,
-    val resendSeconds: Int = 0,
-    val otpVerifying: Boolean = false,
-    val otpError: String? = null,
-    val otpVerified: Boolean = false,
-    val loginUrl: String? = null,
-    val webError: Boolean = false,
+    val pinLoading: Boolean = false,
+    val pinError: String? = null,
+    val connectLoading: Boolean = false,
+    val connectError: String? = null,
     val pendingLoading: Boolean = false,
     val pendingRefreshing: Boolean = false,
     val pendingItems: List<PendingItem> = emptyList(),
-    val pendingError: String? = null
+    val pendingError: String? = null,
+    val selectedId: String? = null,
+    val themeMode: String = "system",
+    val soundsEnabled: Boolean = false
 )
 
-class AppViewModel(private val repository: FbrRepository) : ViewModel() {
+class AppViewModel(
+    private val repository: FbrRepository,
+    private val settings: SettingsStore
+) : ViewModel() {
     private val _state = MutableStateFlow(AppUiState())
-    private var countdownJob: Job? = null
     val state: StateFlow<AppUiState> = _state.asStateFlow()
 
-    init { checkSession() }
+    init {
+        _state.value = _state.value.copy(
+            themeMode = settings.themeMode,
+            soundsEnabled = settings.soundsEnabled
+        )
+        com.fbr.ntn.ui.sound.SoundFx.enabled = settings.soundsEnabled
+        checkSession()
+    }
+
+    fun setThemeMode(mode: String) {
+        settings.themeMode = mode
+        _state.value = _state.value.copy(themeMode = mode)
+    }
+
+    fun setSoundsEnabled(enabled: Boolean) {
+        settings.soundsEnabled = enabled
+        com.fbr.ntn.ui.sound.SoundFx.enabled = enabled
+        _state.value = _state.value.copy(soundsEnabled = enabled)
+    }
+
+    fun openSettings() {
+        _state.value = _state.value.copy(screen = AppScreen.SETTINGS)
+    }
+
+    fun closeSettings() {
+        _state.value = _state.value.copy(screen = AppScreen.HOME)
+    }
 
     private fun checkSession() = viewModelScope.launch {
         val session = repository.validSession()
         delay(1100)
         if (session != null) {
-            val savedAccount = if (session.ntn != null && session.displayName != null) AccountContext(
-                session.ntn, session.displayName, session.maskedMobile.orEmpty(), ""
-            ) else null
-            _state.value = _state.value.copy(screen = AppScreen.HOME, account = savedAccount)
+            _state.value = _state.value.copy(
+                screen = AppScreen.HOME,
+                account = AccountContext(session.ntn ?: "", session.displayName ?: "", ""),
+                pendingItems = emptyList()
+            )
             loadPending()
         } else _state.value = _state.value.copy(screen = AppScreen.NTN)
+    }
+
+    fun openConnect() {
+        _state.value = _state.value.copy(screen = AppScreen.CONNECT)
+    }
+
+    fun connect(apiUrl: String, username: String, password: String, pin: String) = viewModelScope.launch {
+        _state.value = _state.value.copy(connectLoading = true, connectError = null)
+        when (val result = repository.connectAndLogin(apiUrl, username, password, pin)) {
+            is AppResult.Success -> {
+                val session = result.value
+                repository.saveSession(session)
+                _state.value = _state.value.copy(
+                    screen = AppScreen.HOME,
+                    connectLoading = false,
+                    account = AccountContext(session.ntn ?: "", session.displayName ?: "", ""),
+                    pendingItems = emptyList()
+                )
+                loadPending()
+            }
+            is AppResult.Error -> {
+                _state.value = _state.value.copy(connectLoading = false, connectError = friendlyError(result.kind, result.message))
+            }
+        }
     }
 
     fun checkNtn(ntn: String) = viewModelScope.launch {
         _state.value = _state.value.copy(ntnLoading = true, ntnError = null)
         when (val result = repository.checkNtn(ntn)) {
-            is AppResult.Success -> _state.value = _state.value.copy(screen = AppScreen.MOBILE, account = result.value, ntnLoading = false)
-            is AppResult.Error -> _state.value = _state.value.copy(ntnLoading = false, ntnError = if (result.kind == ErrorKind.NOT_FOUND) "We couldn't find that NTN" else friendlyError(result.kind))
+            is AppResult.Success -> _state.value = _state.value.copy(screen = AppScreen.PIN, account = result.value, ntnLoading = false)
+            is AppResult.Error -> _state.value = _state.value.copy(ntnLoading = false, ntnError = friendlyError(result.kind, result.message))
         }
     }
 
-    fun sendOtp() = viewModelScope.launch {
-        val mobile = state.value.account?.mobileToken ?: return@launch
-        _state.value = _state.value.copy(otpSending = true, otpError = null)
-        when (val result = repository.sendOtp(mobile)) {
+    fun verifyPin(ntn: String, pin: String) = viewModelScope.launch {
+        if (_state.value.pinLoading) return@launch
+        _state.value = _state.value.copy(pinLoading = true, pinError = null)
+        when (val result = repository.verifyPin(ntn, pin)) {
             is AppResult.Success -> {
-                _state.value = _state.value.copy(screen = AppScreen.OTP, otpSending = false, challengeId = result.value.first, resendSeconds = result.value.second)
-                startCountdown(result.value.second)
+                val session = result.value
+                repository.saveSession(session)
+                _state.value = _state.value.copy(
+                    screen = AppScreen.HOME,
+                    pinLoading = false,
+                    account = AccountContext(session.ntn ?: "", session.displayName ?: "", ""),
+                    pendingItems = emptyList()
+                )
+                loadPending()
             }
-            is AppResult.Error -> _state.value = _state.value.copy(otpSending = false, otpError = friendlyError(result.kind))
+            is AppResult.Error -> {
+                com.fbr.ntn.ui.sound.SoundFx.error()
+                _state.value = _state.value.copy(pinLoading = false, pinError = friendlyError(result.kind, result.message))
+            }
         }
     }
 
-    fun verifyOtp(code: String) = viewModelScope.launch {
-        if (state.value.otpVerifying) return@launch
-        val challenge = state.value.challengeId ?: return@launch
-        _state.value = _state.value.copy(otpVerifying = true, otpError = null)
-        when (val verified = repository.verifyOtp(challenge, code)) {
+    fun validateInvoice(id: String) = viewModelScope.launch {
+        _state.value = _state.value.copy(pendingItems = state.value.pendingItems.map {
+            if (it.id == id) it.copy(dueLabel = "Validating…") else it
+        })
+        when (val result = repository.validateInvoice(id)) {
             is AppResult.Success -> {
-                _state.value = _state.value.copy(otpVerifying = false, otpVerified = true)
-                delay(800)
-                when (val link = repository.getLoginLink(verified.value)) {
-                    is AppResult.Success -> _state.value = _state.value.copy(screen = AppScreen.WEB_LOGIN, loginUrl = link.value, otpVerified = false)
-                    is AppResult.Error -> _state.value = _state.value.copy(otpVerified = false, otpError = friendlyError(link.kind))
-                }
+                val fbrNo = result.value.second
+                _state.value = _state.value.copy(pendingItems = state.value.pendingItems.map {
+                    if (it.id == id) it.copy(status = PendingStatus.POSTED, dueLabel = "Validated", fbrInvoiceNo = fbrNo.orEmpty()) else it
+                })
+                com.fbr.ntn.ui.sound.SoundFx.success()
             }
-            is AppResult.Error -> _state.value = _state.value.copy(otpVerifying = false, otpError = if (verified.kind == ErrorKind.INVALID_OTP) "That code didn't match — try again" else friendlyError(verified.kind))
+            is AppResult.Error -> {
+                _state.value = _state.value.copy(pendingItems = state.value.pendingItems.map {
+                    if (it.id == id) it.copy(dueLabel = it.dueLabel) else it
+                })
+                com.fbr.ntn.ui.sound.SoundFx.error()
+            }
         }
     }
 
-    fun resendOtp() { if (state.value.resendSeconds == 0) sendOtp() }
-
-    private fun startCountdown(from: Int) {
-        countdownJob?.cancel()
-        countdownJob = viewModelScope.launch {
-        repeat(from) {
-            delay(1000)
-            _state.value = _state.value.copy(resendSeconds = (_state.value.resendSeconds - 1).coerceAtLeast(0))
+    fun postInvoice(id: String) = viewModelScope.launch {
+        _state.value = _state.value.copy(pendingItems = state.value.pendingItems.map {
+            if (it.id == id) it.copy(dueLabel = "Posting…") else it
+        })
+        when (val result = repository.postInvoice(id)) {
+            is AppResult.Success -> {
+                _state.value = _state.value.copy(pendingItems = state.value.pendingItems.filter { it.id != id })
+                com.fbr.ntn.ui.sound.SoundFx.success()
+            }
+            is AppResult.Error -> {
+                _state.value = _state.value.copy(pendingItems = state.value.pendingItems.map {
+                    if (it.id == id) it.copy(dueLabel = it.dueLabel) else it
+                })
+                com.fbr.ntn.ui.sound.SoundFx.error()
+            }
         }
-    }
-    }
-
-    fun webFailed() { _state.value = _state.value.copy(webError = true) }
-    fun retryWeb() { _state.value = _state.value.copy(webError = false) }
-
-    fun completeLogin(token: String) {
-        repository.completeWebLogin(token, state.value.account)
-        _state.value = _state.value.copy(screen = AppScreen.HOME, webError = false)
-        loadPending()
     }
 
     fun loadPending(refresh: Boolean = false) = viewModelScope.launch {
         _state.value = _state.value.copy(pendingLoading = !refresh, pendingRefreshing = refresh, pendingError = null)
         when (val result = repository.getPending()) {
             is AppResult.Success -> _state.value = _state.value.copy(pendingLoading = false, pendingRefreshing = false, pendingItems = result.value)
-            is AppResult.Error -> _state.value = _state.value.copy(pendingLoading = false, pendingRefreshing = false, pendingError = friendlyError(result.kind))
+            is AppResult.Error -> _state.value = _state.value.copy(pendingLoading = false, pendingRefreshing = false, pendingError = friendlyError(result.kind, result.message))
         }
     }
 
-    fun back() {
-        _state.value = when (state.value.screen) {
-            AppScreen.MOBILE -> state.value.copy(screen = AppScreen.NTN)
-            AppScreen.OTP -> state.value.copy(screen = AppScreen.MOBILE, otpError = null)
-            AppScreen.WEB_LOGIN -> state.value.copy(screen = AppScreen.OTP)
-            else -> state.value
+    fun openInvoice(id: String) {
+        _state.value = _state.value.copy(selectedId = id, screen = AppScreen.DETAIL)
+    }
+
+    fun closeDetail() {
+        _state.value = _state.value.copy(selectedId = null, screen = AppScreen.HOME)
+    }
+
+    fun lock() {
+        _state.value = _state.value.copy(screen = AppScreen.LOCK, selectedId = null)
+    }
+
+    fun unlock(username: String, password: String, pin: String) = viewModelScope.launch {
+        _state.value = _state.value.copy(connectLoading = true, connectError = null)
+        val session = repository.validSession()
+        val apiUrl = session?.apiUrl ?: com.fbr.ntn.data.FbrRepository.BASE_URL
+        val savedNtn = session?.ntn ?: ""
+        when (val result = repository.connectAndLogin(apiUrl, username, password, pin, savedNtn)) {
+            is AppResult.Success -> {
+                val s = result.value
+                repository.saveSession(s)
+                _state.value = _state.value.copy(
+                    screen = AppScreen.HOME,
+                    connectLoading = false,
+                    account = AccountContext(s.ntn ?: "", s.displayName ?: "", ""),
+                    pendingItems = emptyList()
+                )
+                loadPending()
+            }
+            is AppResult.Error -> {
+                com.fbr.ntn.ui.sound.SoundFx.error()
+                _state.value = _state.value.copy(connectLoading = false, connectError = friendlyError(result.kind, result.message))
+            }
         }
     }
 
-    private fun friendlyError(kind: ErrorKind) = when (kind) {
-        ErrorKind.NETWORK -> "Couldn't reach the server — check your connection and try again"
-        ErrorKind.UNAUTHORIZED -> "Your session has expired. Please verify again"
-        else -> "Something went wrong. Please try again"
+    fun switchAccount() {
+        repository.clearSession()
+        _state.value = AppUiState(
+            screen = AppScreen.NTN,
+            themeMode = settings.themeMode,
+            soundsEnabled = settings.soundsEnabled
+        )
+    }
+
+    private fun friendlyError(kind: ErrorKind, message: String? = null) = when (kind) {
+        ErrorKind.NETWORK -> message ?: "Couldn't reach the server — check your connection"
+        ErrorKind.UNAUTHORIZED -> message ?: "Invalid NTN or PIN. Try again"
+        ErrorKind.NOT_FOUND -> message ?: "NTN not found on FBR"
+        ErrorKind.SERVER -> message ?: "Server error — try again later"
+        else -> message ?: "Something went wrong. Please try again"
     }
 }
