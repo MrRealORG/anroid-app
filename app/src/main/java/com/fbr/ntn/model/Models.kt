@@ -41,6 +41,7 @@ data class PendingItem(
     val buyerNtn: String = "",
     val buyerStrn: String = "",
     val buyerAddr: String = "",
+    val buyerProvince: String = "",
     val buyerRegType: String = "Registered",
     val paymentTerms: String = "",
     val saleType: String = "",

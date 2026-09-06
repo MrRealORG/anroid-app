@@ -222,7 +222,7 @@ class AppViewModel(
                             sellerStrn = data.company?.saletax ?: it.sellerStrn,
                             buyerNtn = data.buyer?.ntn ?: it.buyerNtn,
                             buyerAddr = data.buyer?.address ?: it.buyerAddr,
-                            buyerStrn = data.buyer?.province ?: it.buyerStrn,
+                            buyerProvince = data.buyer?.province ?: it.buyerProvince,
                             fbrInvoiceNo = data.invoice?.token ?: it.fbrInvoiceNo,
                             validationCode = data.fbr_token ?: it.validationCode,
                             saleType = "Goods at standard rate"

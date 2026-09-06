@@ -116,10 +116,10 @@ object PdfInvoice {
         c.drawText("NTN: ${inv.sellerNtn}", M, y, small)
         if (inv.sellerStrn.isNotBlank()) c.drawText("STRN: ${inv.sellerStrn}", M, y + 12f, small)
         if (inv.buyerNtn.isNotBlank()) c.drawText("NTN: ${inv.buyerNtn}", midX, y, small)
-        if (inv.buyerStrn.isNotBlank()) c.drawText("STRN: ${inv.buyerStrn}", midX, y + 12f, small)
-        y += if (inv.sellerStrn.isNotBlank() || inv.buyerStrn.isNotBlank()) 24f else 12f
+        y += if (inv.sellerStrn.isNotBlank()) 24f else 12f
         wrap(inv.sellerAddr, small, midX - M - 16f).take(2).forEach { c.drawText(it, M, y, small); y += 12f }
         if (inv.buyerAddr.isNotBlank()) wrap(inv.buyerAddr, small, PAGE_W - midX - M).take(2).forEach { c.drawText(it, midX, y, small); y += 12f }
+        if (inv.buyerProvince.isNotBlank()) c.drawText("Province: ${inv.buyerProvince}", midX, y, small)
         c.drawText(inv.sellerContact, M, y, small)
         y += 24f
         c.drawLine(M, y, PAGE_W - M, y, thin(line)); y += 16f
