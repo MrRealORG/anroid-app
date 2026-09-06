@@ -124,7 +124,8 @@ data class Session(
     val displayName: String? = null,
     val maskedEmail: String? = null,
     val apiUrl: String? = null,
-    val username: String? = null
+    val username: String? = null,
+    val sellerStrn: String? = null
 )
 
 sealed interface AppResult<out T> {

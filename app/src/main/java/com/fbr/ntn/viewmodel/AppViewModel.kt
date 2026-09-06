@@ -186,6 +186,8 @@ class AppViewModel(
 
     private fun loadInvoiceDetail(id: String) = viewModelScope.launch {
         _state.value = _state.value.copy(detailLoading = true)
+        val session = repository.validSession()
+        val sessionStrn = session?.sellerStrn ?: ""
         when (val result = repository.printInvoice(id)) {
             is AppResult.Success -> {
                 val data = result.value
@@ -219,7 +221,9 @@ class AppViewModel(
                             sellerName = data.company?.name ?: it.sellerName,
                             sellerNtn = data.company?.ntn ?: it.sellerNtn,
                             sellerAddr = data.company?.address ?: it.sellerAddr,
-                            sellerStrn = data.company?.saletax ?: it.sellerStrn,
+                            sellerStrn = data.company?.saletax?.takeIf { it.isNotBlank() && it != "0" }
+                                ?: sessionStrn.takeIf { it.isNotBlank() && it != "0" }
+                                ?: it.sellerStrn,
                             buyerNtn = data.buyer?.ntn ?: it.buyerNtn,
                             buyerAddr = data.buyer?.address ?: it.buyerAddr,
                             buyerProvince = data.buyer?.province ?: it.buyerProvince,

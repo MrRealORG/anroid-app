@@ -83,7 +83,8 @@ class FbrRepository(
                 ntn = d.ntn,
                 displayName = d.partyname,
                 apiUrl = safeUrl,
-                username = username
+                username = username,
+                sellerStrn = d.saletax
             )
             saveSession(session)
             AppResult.Success(session)
@@ -154,6 +155,7 @@ class FbrRepository(
                     amountFromApi = amt,
                     sellerName = session.displayName ?: "",
                     sellerNtn = session.ntn ?: "",
+                    sellerStrn = session.sellerStrn ?: "",
                     buyerNtn = dto.ntn,
                     fbrInvoiceNo = "",
                     items = emptyList()
@@ -185,6 +187,7 @@ class FbrRepository(
                     amountFromApi = amt,
                     sellerName = session.displayName ?: "",
                     sellerNtn = session.ntn ?: "",
+                    sellerStrn = session.sellerStrn ?: "",
                     buyerNtn = dto.ntn,
                     fbrInvoiceNo = "",
                     items = emptyList()
