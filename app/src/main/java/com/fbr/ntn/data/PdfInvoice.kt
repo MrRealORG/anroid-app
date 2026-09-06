@@ -122,26 +122,52 @@ object PdfInvoice {
         y += 24f
         c.drawLine(M, y, PAGE_W - M, y, thin(line)); y += 16f
 
+        val defaultCols = listOf("#", "HS CODE", "DESCRIPTION", "UOM", "QTY", "RATE", "AMOUNT", "TAX", "TOTAL")
+        val cols = if (inv.columns.isNotEmpty()) inv.columns.map { it.uppercase() } else defaultCols
+        val totalTableW = PAGE_W - 2 * M
+        val colCount = cols.size
+        val colWidths = cols.mapIndexed { i, col ->
+            when {
+                col in listOf("#") -> 24f
+                col in listOf("HS CODE", "HS", "HS-CODE") -> 56f
+                col in listOf("UOM") -> 36f
+                col in listOf("QTY", "QTY.", "QUANTITY") -> 40f
+                col in listOf("RATE", "RETAIL PRICE", "RETAIL PRICE (RS)") -> 52f
+                col in listOf("AMOUNT", "AMOUNT (RS)") -> 56f
+                col in listOf("GST RATE", "GST RATE (%)", "TAX RATE") -> 44f
+                col in listOf("GST AMOUNT", "GST AMOUNT (RS)", "TAX") -> 52f
+                col in listOf("TOTAL INCL. GST", "TOTAL INCL. GST (RS)", "TOTAL") -> 56f
+                else -> totalTableW / colCount
+            }
+        }
+        val colX = mutableListOf<Float>()
+        var cx = M
+        colWidths.forEach { w -> colX.add(cx); cx += w }
+        val rightAlignedCols = setOf("#", "QTY", "QTY.", "QUANTITY", "RATE", "RETAIL PRICE", "RETAIL PRICE (RS)",
+            "AMOUNT", "AMOUNT (RS)", "GST RATE", "GST RATE (%)", "TAX RATE",
+            "GST AMOUNT", "GST AMOUNT (RS)", "TAX", "TOTAL INCL. GST", "TOTAL INCL. GST (RS)", "TOTAL")
+
+        fun colValue(item: com.fbr.ntn.model.LineItem, colName: String): String = when (colName) {
+            "#", "SR", "SR." -> ""
+            "HS CODE", "HS", "HS-CODE" -> item.hsCode
+            "DESCRIPTION", "ITEM NAME", "ITEM", "DESC" -> item.description
+            "UOM" -> item.uom
+            "QTY", "QTY.", "QUANTITY" -> com.fbr.ntn.model.qtyFmt(item.quantity)
+            "RATE", "RETAIL PRICE", "RETAIL PRICE (RS)" -> plain(item.rate)
+            "AMOUNT", "AMOUNT (RS)" -> plain(item.valueExcl)
+            "GST RATE", "GST RATE (%)", "TAX RATE" -> "${com.fbr.ntn.model.qtyFmt(item.taxRate)}%"
+            "GST AMOUNT", "GST AMOUNT (RS)", "TAX" -> plain(item.tax)
+            "TOTAL INCL. GST", "TOTAL INCL. GST (RS)", "TOTAL" -> plain(item.total)
+            else -> ""
+        }
+
         fun tableHeader(yy: Float) {
             c.drawRect(M, yy, PAGE_W - M, yy + 20f, Paint().apply { color = lightFill })
             val hp = paint(navy, 8f, true)
-            val cols = inv.columns
-            if (cols.isNotEmpty()) {
-                val positions = listOf(M + 4f, 56f, 120f, 290f, 320f, 360f, 420f, 470f, 520f)
-                cols.take(positions.size).forEachIndexed { i, col ->
-                    if (i < 6) c.drawText(col.uppercase(), positions[i], yy + 14f, hp)
-                    else right(c, col.uppercase(), positions[i], yy + 14f, hp)
-                }
-            } else {
-                c.drawText("#", M + 4f, yy + 14f, hp)
-                c.drawText("HS CODE", 56f, yy + 14f, hp)
-                c.drawText("DESCRIPTION", 120f, yy + 14f, hp)
-                c.drawText("UOM", 290f, yy + 14f, hp)
-                c.drawText("QTY", 320f, yy + 14f, hp)
-                c.drawText("RATE", 360f, yy + 14f, hp)
-                right(c, "AMOUNT", 470f, yy + 14f, hp)
-                right(c, "TAX", 520f, yy + 14f, hp)
-                right(c, "TOTAL", PAGE_W - M - 4f, yy + 14f, hp)
+            cols.forEachIndexed { i, col ->
+                val x = colX[i]
+                if (col in rightAlignedCols) right(c, col, x + colWidths[i] - 4f, yy + 14f, hp)
+                else c.drawText(col, x + 4f, yy + 14f, hp)
             }
         }
         tableHeader(y); y += 20f
@@ -154,18 +180,19 @@ object PdfInvoice {
                 tableHeader(y); y += 20f
             }
             y += 16f
-            c.drawText("%02d".format(index + 1), M + 4f, y, rowP)
-            c.drawText(item.hsCode, 56f, y, rowP)
-            var desc = item.description
-            while (rowP.measureText(desc) > 164f && desc.length > 4) desc = desc.dropLast(1)
-            if (desc != item.description) desc = desc.dropLast(1) + "…"
-            c.drawText(desc, 120f, y, rowP)
-            c.drawText(item.uom, 290f, y, rowP)
-            c.drawText(com.fbr.ntn.model.qtyFmt(item.quantity), 320f, y, rowP)
-            c.drawText(plain(item.rate), 360f, y, rowP)
-            right(c, plain(item.valueExcl), 470f, y, rowP)
-            right(c, "${plain(item.tax)} (${com.fbr.ntn.model.qtyFmt(item.taxRate)}%)", 520f, y, rowP)
-            right(c, plain(item.total), PAGE_W - M - 4f, y, paint(navy, 8.5f, true))
+            cols.forEachIndexed { i, col ->
+                val x = colX[i]
+                val value = if (col == "#") "%02d".format(index + 1) else colValue(item, col)
+                var display = value
+                if (col == "DESCRIPTION" || col == "ITEM NAME" || col == "ITEM" || col == "DESC") {
+                    val maxW = colWidths[i] - 8f
+                    while (rowP.measureText(display) > maxW && display.length > 4) display = display.dropLast(1)
+                    if (display != value) display = display.dropLast(1) + "…"
+                }
+                val p = if (col == "TOTAL INCL. GST" || col == "TOTAL INCL. GST (RS)" || col == "TOTAL") paint(navy, 8.5f, true) else rowP
+                if (col in rightAlignedCols) right(c, display, x + colWidths[i] - 4f, y, p)
+                else c.drawText(display, x + 4f, y, p)
+            }
             y += 6f
             c.drawLine(M, y, PAGE_W - M, y, thin(line))
         }
