@@ -68,15 +68,12 @@ class AppViewModel(
     private fun checkSession() = viewModelScope.launch {
         val session = repository.validSession()
         delay(1100)
-        if (session != null && !session.apiUrl.isNullOrBlank() && !session.token.isNullOrBlank()) {
+        if (session != null && !session.ntn.isNullOrBlank()) {
             _state.value = _state.value.copy(
-                screen = AppScreen.HOME,
-                account = AccountContext(session.ntn ?: "", session.displayName ?: "", ""),
-                pendingItems = emptyList()
+                screen = AppScreen.CONNECT,
+                ntn = session.ntn,
+                connectUrl = session.apiUrl ?: ""
             )
-            loadPending()
-        } else if (session != null && !session.ntn.isNullOrBlank()) {
-            _state.value = _state.value.copy(screen = AppScreen.CONNECT, ntn = session.ntn, connectUrl = session.apiUrl ?: "")
         } else {
             _state.value = _state.value.copy(screen = AppScreen.NTN)
         }

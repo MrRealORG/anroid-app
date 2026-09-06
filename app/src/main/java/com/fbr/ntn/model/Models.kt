@@ -101,7 +101,7 @@ fun amountInWordsPKR(value: Double): String {
     if (thousand > 0) parts += "${underThousand(thousand)} thousand"
     if (n > 0) parts += underThousand(n)
     val rupees = parts.joinToString(" ").replaceFirstChar { it.uppercase() }
-    return if (paisa > 0) "$rupees Pakistani rupees and $paisa paisa only"
+    return if (paisa > 0) "$rupees Pakistani rupees and ${underThousand(paisa.toLong())} paisa only"
     else "$rupees Pakistani rupees only"
 }
 
