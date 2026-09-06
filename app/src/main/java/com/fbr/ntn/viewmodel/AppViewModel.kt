@@ -221,9 +221,7 @@ class AppViewModel(
                             sellerName = data.company?.name ?: it.sellerName,
                             sellerNtn = data.company?.ntn ?: it.sellerNtn,
                             sellerAddr = data.company?.address ?: it.sellerAddr,
-                            sellerStrn = data.company?.saletax?.takeIf { it.isNotBlank() && it != "0" }
-                                ?: sessionStrn.takeIf { it.isNotBlank() && it != "0" }
-                                ?: it.sellerStrn,
+                            sellerStrn = data.company?.saletax ?: sessionStrn ?: it.sellerStrn,
                             buyerNtn = data.buyer?.ntn ?: it.buyerNtn,
                             buyerAddr = data.buyer?.address ?: it.buyerAddr,
                             buyerProvince = data.buyer?.province ?: it.buyerProvince,
