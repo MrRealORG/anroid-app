@@ -204,13 +204,8 @@ object PdfInvoice {
         }
 
         val notesTop = y
-        c.drawText("PAYMENT & NOTES", M, y, smallBold); y += 14f
-        c.drawText("Amount in words", M, y, tiny); y += 11f
-        wrap(amountInWordsPKR(inv.amount), body, 280f).take(3).forEach { c.drawText(it, M, y, body); y += 11f }
-        y += 5f
-        c.drawText("Payment terms", M, y, tiny); y += 11f
-        wrap(inv.paymentTerms.ifBlank { "Due on receipt" }, body, 280f).take(2).forEach { c.drawText(it, M, y, body); y += 11f }
-        c.drawText("Sale type: ${inv.saleType.ifBlank { "Goods at standard rate" }}", M, y + 10f, small)
+        c.drawText("AMOUNT IN WORDS", M, y, smallBold); y += 14f
+        wrap(amountInWordsPKR(inv.amount), body, PAGE_W - 2 * M).take(3).forEach { c.drawText(it, M, y, body); y += 11f }
 
         var ty = notesTop + 14f
         fun totalRow(label: String, value: String, big: Boolean) {

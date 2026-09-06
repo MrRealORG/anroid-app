@@ -30,6 +30,8 @@ data class PendingItem(
     val period: String,
     val dueLabel: String,
     val amountFromApi: Double = 0.0,
+    val taxFromApi: Double = 0.0,
+    val furtherTaxFromApi: Double = 0.0,
     val sellerName: String = "",
     val sellerLogoUrl: String = "",
     val sellerNtn: String = "",
@@ -48,10 +50,10 @@ data class PendingItem(
     val columns: List<String> = emptyList(),
     val items: List<LineItem> = emptyList()
 ) {
-    val subtotal: Double get() = if (items.isNotEmpty()) items.sumOf { it.valueExcl } else amountFromApi
-    val tax: Double get() = if (items.isNotEmpty()) items.sumOf { it.tax } else 0.0
-    val furtherTax: Double get() = 0.0
-    val amount: Double get() = if (items.isNotEmpty()) subtotal + tax + furtherTax else amountFromApi
+    val subtotal: Double get() = if (amountFromApi > 0) amountFromApi - tax - furtherTax else if (items.isNotEmpty()) items.sumOf { it.valueExcl } else 0.0
+    val tax: Double get() = if (taxFromApi > 0) taxFromApi else if (items.isNotEmpty()) items.sumOf { it.tax } else 0.0
+    val furtherTax: Double get() = if (furtherTaxFromApi > 0) furtherTaxFromApi else 0.0
+    val amount: Double get() = if (amountFromApi > 0) amountFromApi else if (items.isNotEmpty()) subtotal + tax + furtherTax else 0.0
 }
 
 fun money(value: Double): String {
@@ -86,15 +88,21 @@ private fun underThousand(n: Long): String {
 
 /** Amount in words, matching the official template style ("Three hundred fifty-three thousand ..."). */
 fun amountInWordsPKR(value: Double): String {
-    var n = kotlin.math.abs(value).toLong()
-    if (n == 0L) return "Zero Pakistani rupees only"
+    val rounded = kotlin.math.round(value * 100) / 100.0
+    var n = kotlin.math.abs(rounded).toLong()
+    val paisa = ((kotlin.math.abs(rounded) - n) * 100).toInt()
+    if (n == 0L && paisa == 0) return "Zero Pakistani rupees only"
     val parts = mutableListOf<String>()
+    val billion = n / 1_000_000_000; n %= 1_000_000_000
     val million = n / 1_000_000; n %= 1_000_000
     val thousand = n / 1_000; n %= 1_000
+    if (billion > 0) parts += "${underThousand(billion)} billion"
     if (million > 0) parts += "${underThousand(million)} million"
     if (thousand > 0) parts += "${underThousand(thousand)} thousand"
     if (n > 0) parts += underThousand(n)
-    return (parts.joinToString(" ").replaceFirstChar { it.uppercase() } + " Pakistani rupees only")
+    val rupees = parts.joinToString(" ").replaceFirstChar { it.uppercase() }
+    return if (paisa > 0) "$rupees Pakistani rupees and $paisa paisa only"
+    else "$rupees Pakistani rupees only"
 }
 
 enum class PendingStatus(val label: String) {

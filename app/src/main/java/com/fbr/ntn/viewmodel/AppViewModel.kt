@@ -208,6 +208,8 @@ class AppViewModel(
                 }
                 val summary = data.summary
                 val apiAmount = summary?.totalInclusive ?: 0.0
+                val apiTax = summary?.totalTax ?: 0.0
+                val apiFurtherTax = summary?.totalFutherTax ?: 0.0
                 _state.value = _state.value.copy(
                     detailLoading = false,
                     pendingItems = _state.value.pendingItems.map {
@@ -215,6 +217,8 @@ class AppViewModel(
                             items = lineItems,
                             columns = data.columns,
                             amountFromApi = apiAmount,
+                            taxFromApi = apiTax,
+                            furtherTaxFromApi = apiFurtherTax,
                             sellerName = data.company?.name ?: it.sellerName,
                             sellerNtn = data.company?.ntn ?: it.sellerNtn,
                             sellerAddr = data.company?.address ?: it.sellerAddr,
